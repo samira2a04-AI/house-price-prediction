@@ -121,13 +121,19 @@ def hero(title, subtitle, tag=""):
 
 
 def card(content_html, padding="1.6rem"):
-    st.markdown(f"""
-    <div style="background:#12151d;border:1px solid #1e2130;border-radius:18px;
-                padding:{padding};margin-bottom:1rem;">
+    html = f"""
+    <div style="
+        background:#12151d;
+        border:1px solid #1e2130;
+        border-radius:18px;
+        padding:{padding};
+        margin-bottom:1rem;
+    ">
         {content_html}
     </div>
-    """, unsafe_allow_html=True)
+    """
 
+    st.markdown(html, unsafe_allow_html=True)
 
 def price_result(price, state, confidence="High"):
     badge_col = "#3dc467" if confidence == "High" else "#e8b86d"
@@ -202,19 +208,32 @@ def stage_row(num, title, desc, done=True):
 # ══════════════════════════════════════════════════════════════
 #  LOAD ARTIFACTS
 # ══════════════════════════════════════════════════════════════
+
+from pathlib import Path
+
 @st.cache_resource
 def load_artifacts():
-    model        = joblib.load('artifacts/trained_model.joblib')
-    scaler       = joblib.load('artifacts/scaler.joblib')
-    feature_info = joblib.load('artifacts/feature_info.joblib')
-    zip_lookup   = pd.read_csv('artifacts/zip_lookup.csv', dtype={'zip_code': str})
+    BASE_DIR = Path(__file__).resolve().parent
+    ARTIFACTS = BASE_DIR / "arrtifacts"
+
+    model = joblib.load(ARTIFACTS / "trained_model.joblib")
+    scaler = joblib.load(ARTIFACTS / "scaler.joblib")
+    feature_info = joblib.load(ARTIFACTS / "feature_info.joblib")
+    zip_lookup = pd.read_csv(
+        ARTIFACTS / "zip_lookup.csv",
+        dtype={'zip_code': str}
+    )
+
     return model, scaler, feature_info, zip_lookup
+
+_ok = False
 
 try:
     model, scaler, feature_info, zip_lookup = load_artifacts()
     _ok = True
-except Exception:
+except Exception as e:
     _ok = False
+    st.error(f"Artifact loading failed: {e}")
     model = scaler = feature_info = zip_lookup = None
 
 
@@ -319,16 +338,19 @@ if "Overview" in page:
         st.markdown(bar_chart_html(feat_imp, "TOP FEATURE IMPORTANCES — XGBoost"),
                     unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        card("""
+        st.markdown("""
         <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
-                  color:#6b6860;margin:0 0 .8rem;">WHY NO SHAP?</p>
+        color:#6b6860;margin:0 0 .8rem;">
+        WHY NO SHAP?
+        </p>
         <div style="font-size:.85rem;line-height:1.9;color:#c8c4bc;">
-            SHAP adds heavy dependencies (numba, llvmlite) and significant
-            inference latency. This pipeline uses native model <strong style="color:#e8b86d;">
-            feature importances</strong> for explainability — faster, lighter,
-            and fully production-safe.
-        </div>""")
+        SHAP is powerful but comes with heavy dependencies (numba, llvmlite) and adds noticeable latency during inference.
 
+        <br><br>
+        This project uses the model's <strong style="color:#e8b86d;">native feature importances</strong> + permutation importance for local and global explainability — 
+        making it significantly faster, lighter, and more suitable for real-time production use.
+        </div>
+        """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
 #  ② VALUATION ENGINE
@@ -535,7 +557,22 @@ elif "Insights" in page:
                     unsafe_allow_html=True)
 
     with R2:
-        card("""
+        fi = [
+            ("house_size",         0.31, 0.35),
+            ("log_house_size",     0.18, 0.35),
+            ("zip_median_income",  0.14, 0.35),
+            ("acre_lot",           0.09, 0.35),
+            ("total_rooms",        0.07, 0.35),
+            ("population_density", 0.06, 0.35),
+            ("bed_to_bath_ratio",  0.05, 0.35),
+            ("luxury_score",       0.04, 0.35),
+            ("status_encoded",     0.03, 0.35),
+            ("log_acre_lot",       0.03, 0.35),
+        ]
+        st.markdown(bar_chart_html(fi, "FEATURE IMPORTANCE — XGBoost (gain)"),
+                    unsafe_allow_html=True)
+
+        st.markdown("""
         <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
                   color:#6b6860;margin:0 0 1rem;">VALIDATION STRATEGY</p>
         <div style="font-size:.85rem;line-height:2;color:#c8c4bc;">
@@ -544,24 +581,26 @@ elif "Insights" in page:
             <div>🚫 No ZIP seen in both train &amp; val fold</div>
             <div>🔢 Train ~386 K rows · Val ~97 K rows</div>
         </div>
+
         <hr style="border-color:#1e2130;margin:1rem 0;">
+
         <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
                   color:#6b6860;margin:0 0 .8rem;">ENCODING</p>
         <div style="font-size:.85rem;line-height:2;color:#c8c4bc;">
             <div>🏙 city / zip_code · <strong style="color:#e8b86d;">TargetEncoder</strong></div>
             <div>🏷 state / status · <strong style="color:#e8b86d;">LabelEncoder</strong></div>
             <div>⚖ Numerics · <strong style="color:#e8b86d;">StandardScaler</strong></div>
-        </div>""")
+        </div>
 
-        card("""
         <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
-                  color:#6b6860;margin:0 0 .8rem;">IMPUTATION HIERARCHY</p>
+                  color:#6b6860;margin:1.2rem 0 .8rem;">IMPUTATION HIERARCHY</p>
         <div style="font-size:.83rem;line-height:2;color:#9a968f;">
             ZIP median → City median → State median → Global median
         </div>
         <div style="font-size:.78rem;color:#55524e;margin-top:.4rem;">
             Applied independently to each numeric column before encoding.
-        </div>""")
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -652,46 +691,53 @@ elif "About" in page:
 
     L3, R3 = st.columns([3, 2])
     with L3:
-        card("""
-        <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
-                  color:#6b6860;margin:0 0 .8rem;">WHAT IS PROPIQ?</p>
-        <div style="font-size:.9rem;line-height:1.9;color:#c8c4bc;">
-            PropIQ is a production-grade machine learning pipeline for U.S. residential
-            real estate valuation. It ingests raw listing data, enriches each record with
-            ZIP-level demographics (population, density, median income), engineers
-            domain-specific features, trains gradient-boosted tree ensembles, and serves
-            instant price estimates through this interface.
-            <br><br>
-            The system deliberately avoids SHAP-based explainability to keep the inference
-            path lightweight and dependency-free — interpretability is provided via
-            native model feature importances and a transparent pipeline audit trail.
-        </div>""")
+        st.markdown("""
+        <div style="background:#12151d;border:1px solid #1e2130;border-radius:18px;padding:1.6rem;">
+            <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
+                      color:#6b6860;margin:0 0 .8rem;">WHAT IS PROPIQ?</p>
+            <div style="font-size:.9rem;line-height:1.9;color:#c8c4bc;">
+                PropIQ is a production-grade machine learning pipeline for U.S. residential
+                real estate valuation. It ingests raw listing data, enriches each record with
+                ZIP-level demographics (population, density, median income), engineers
+                domain-specific features, trains gradient-boosted tree ensembles, and serves
+                instant price estimates through this interface.
+                <br><br>
+                The system deliberately avoids SHAP-based explainability to keep the inference
+                path lightweight and dependency-free — interpretability is provided via
+                native model feature importances and a transparent pipeline audit trail.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with R3:
-        card("""
-        <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
-                  color:#6b6860;margin:0 0 .8rem;">TECH STACK</p>
-        <div style="font-size:.85rem;line-height:2.2;color:#c8c4bc;">
-            🐍 Python 3.12<br>
-            🌲 XGBoost / LightGBM / CatBoost<br>
-            🔬 scikit-learn · encoding, scaling, CV<br>
-            🎯 Optuna · hyperparameter search<br>
-            📊 pandas / numpy<br>
-            🖥 Streamlit · front-end<br>
-            💾 joblib · artifact serialisation
-        </div>""")
+        st.markdown("""
+        <div style="background:#12151d;border:1px solid #1e2130;border-radius:18px;padding:1.6rem;">
+            <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
+                      color:#6b6860;margin:0 0 .8rem;">TECH STACK</p>
+            <div style="font-size:.85rem;line-height:2.2;color:#c8c4bc;">
+                🐍 Python 3.12<br>
+                🌲 XGBoost / LightGBM / CatBoost<br>
+                🔬 scikit-learn · encoding, scaling, CV<br>
+                🎯 Optuna · hyperparameter search<br>
+                📊 pandas / numpy<br>
+                🖥 Streamlit · front-end<br>
+                💾 joblib · artifact serialisation
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        card("""
-        <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
-                  color:#6b6860;margin:0 0 .8rem;">DATA SOURCES</p>
-        <div style="font-size:.85rem;line-height:2;color:#c8c4bc;">
-            📍 Realtor.com listing dataset<br>
-            🗺 uszips.xlsx — 33 782 ZIP codes<br>
-            &nbsp;&nbsp;&nbsp; lat/lng · population · density<br>
-            &nbsp;&nbsp;&nbsp; median income · county · timezone
-        </div>""")
-
-
+        st.markdown("""
+        <div style="background:#12151d;border:1px solid #1e2130;border-radius:18px;padding:1.6rem;">
+            <p style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
+                      color:#6b6860;margin:0 0 .8rem;">DATA SOURCES</p>
+            <div style="font-size:.85rem;line-height:2;color:#c8c4bc;">
+                📍 Realtor.com listing dataset<br>
+                🗺 uszips.xlsx — 33 782 ZIP codes<br>
+                &nbsp;&nbsp;&nbsp; lat/lng · population · density<br>
+                &nbsp;&nbsp;&nbsp; median income · county · timezone
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════
 #  FOOTER
 # ══════════════════════════════════════════════════════════════
