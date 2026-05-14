@@ -416,7 +416,7 @@ elif "Valuation" in page:
 
                 X        = row[feature_info['feature_cols']].fillna(0)
                 X_scaled = scaler.transform(X)
-                pred     = model.predict(X_scaled)[0]
+                pred     = model.predict(X_scaled)[0]*-1
 
             price_result(pred, state)
 
